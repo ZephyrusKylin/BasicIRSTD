@@ -11,18 +11,19 @@ import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 parser = argparse.ArgumentParser(description="PyTorch BasicIRSTD train")
-parser.add_argument("--model_names", default=['ACM', 'ALCNet'], type=list, 
+parser.add_argument("--model_names", default=['ACM', 'ALCNet'], nargs='+', 
                     help="model_name: 'ACM', 'ALCNet', 'DNANet', 'ISNet', 'UIUNet', 'RDIAN', 'ISTDU-Net', 'U-Net', 'RISTDnet'")              
-parser.add_argument("--dataset_names", default=['NUAA-SIRST'], type=list, 
+parser.add_argument("--dataset_names", default=['NUAA-SIRST'], nargs='+', 
                     help="dataset_name: 'NUAA-SIRST', 'NUDT-SIRST', 'IRSTD-1K', 'SIRST3', 'NUDT-SIRST-Sea', 'IRDST-real'")
 parser.add_argument("--img_norm_cfg", default=None, type=dict,
                     help="specific a img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
 
-parser.add_argument("--dataset_dir", default='./dataset', type=str, help="train_dataset_dir")
+parser.add_argument("--dataset_dir", default='./datasets', type=str, help="train_dataset_dir")
 parser.add_argument("--batchSize", type=int, default=16, help="Training batch sizse")
 parser.add_argument("--patchSize", type=int, default=256, help="Training patch size")
 parser.add_argument("--save", default='./log', type=str, help="Save path of checkpoints")
-parser.add_argument("--resume", default=None, type=list, help="Resume from exisiting checkpoints (default: None)")
+parser.add_argument("--resume", default=None, nargs='+', help="Resume from exisiting checkpoints (default: None)")
+parser.add_argument("--pretrained", default=None, nargs='+', help="Load pretrained checkpoints (default: None)")
 parser.add_argument("--nEpochs", type=int, default=400, help="Number of epochs")
 parser.add_argument("--optimizer_name", default='Adam', type=str, help="optimizer name: Adam, Adagrad, SGD")
 parser.add_argument("--optimizer_settings", default={'lr': 5e-4}, type=dict, help="optimizer settings")
@@ -57,6 +58,11 @@ def train():
                 total_loss_list = ckpt['total_loss']
                 for i in range(len(opt.scheduler_settings['step'])):
                     opt.scheduler_settings['step'][i] = opt.scheduler_settings['step'][i] - ckpt['epoch']
+    if opt.pretrained:
+        for pretrained_pth in opt.pretrained:
+            if opt.dataset_name in pretrained_pth and opt.model_name in pretrained_pth:
+                ckpt = torch.load(resume_pth)
+                net.load_state_dict(ckpt['state_dict'])
     
     ### Default settings                
     if opt.optimizer_name == 'Adam':

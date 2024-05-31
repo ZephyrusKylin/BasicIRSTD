@@ -88,7 +88,7 @@ Please first download our datasets via [Baidu Drive](https://pan.baidu.com/s/1df
 ## Commands for Training
 * **Run **`train.py`** to perform network training. Example for training [model_name] on [dataset_name] datasets:**
   ```
-  $ python train.py
+  $ python train.py --model_names ACM ALCNet --dataset_names NUAA-SIRST
   ```
 * **Checkpoints and Logs will be saved to **`./log/`**, and the **`./log/`** has the following structure:**
   ```
@@ -123,7 +123,7 @@ Please first download our datasets via [Baidu Drive](https://pan.baidu.com/s/1df
 ## Commands for Test
 * **Run **`test.py`** to perform network inference. Example for test [model_name] on [dataset_name] datasets:**
   ```
-  $ python test.py
+  $ python test.py --model_names ACM ALCNet --dataset_names NUAA-SIRST
   ```
   
 * **The PA/mIoU and PD/FA values of each dataset will be saved to** **`./test_[current time].txt`**<br>
@@ -150,16 +150,16 @@ Please first download our datasets via [Baidu Drive](https://pan.baidu.com/s/1df
   │    │   │    ├── ...
   │    │   │    ├── XDU20.png
   ```
-* **Run **`evaluate.py`** for direct eevaluation. Example for evaluate [method_name] on [dataset_name] datasets:**
+* **Run **`evaluate.py`** for direct eevaluation. Example for evaluate [model_name] on [dataset_name] datasets:**
   ```
-  $ python evaluate.py
+  $ python evaluate.py --model_names ACM --dataset_names NUAA-SIRST
   ```
 * **The PA/mIoU and PD/FA values of each dataset will be saved to** **`./eval_[current time].txt`**<br><br>
 
 ## Commands for parameters/FLOPs calculation
 * **Run **`cal_params.py`** for parameters and FLOPs calculation. Examples:**
   ```
-  $ python cal_params.py
+  $ python cal_params.py --model_names ACM ALCNet
   ```
 * **The parameters and FLOPs of each method will be saved to** **`./params_[current time].txt`**<br><br>
 
