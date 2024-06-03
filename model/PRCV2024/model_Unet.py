@@ -5,13 +5,13 @@ import torch.utils.data
 import torch
 from .utils import *
 
-class U_Net(nn.Module):
+class Multi_input_U_Net(nn.Module):
     """
     UNet - Basic Implementation
     Paper : https://arxiv.org/abs/1505.04597
     """
     def __init__(self, in_ch=1, out_ch=1):
-        super(U_Net, self).__init__()
+        super(Multi_input_U_Net, self).__init__()
 
         n1 = 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
@@ -23,18 +23,21 @@ class U_Net(nn.Module):
 
         self.Conv1 = conv_block(in_ch, filters[0])
         self.Conv2 = conv_block(filters[0], filters[1])
-        self.Conv3 = conv_block(filters[1], filters[2])
-        self.Conv4 = conv_block(filters[2], filters[3])
+        self.Conv3 = conv_block(2*filters[1], filters[2])
+        self.Conv4 = conv_block(2*filters[2], filters[3])
         self.Conv5 = conv_block(filters[3], filters[4])
+
+        self.Conv1_2 = conv_block(in_ch, filters[1],stride=2)
+        self.Conv2_3 = conv_block(in_ch, filters[2],stride=4)
 
         self.Up5 = up_conv(filters[4], filters[3])
         self.Up_conv5 = conv_block(filters[4], filters[3])
 
         self.Up4 = up_conv(filters[3], filters[2])
-        self.Up_conv4 = conv_block(filters[3], filters[2])
+        self.Up_conv4 = conv_block(filters[3]+filters[2], filters[2])
 
         self.Up3 = up_conv(filters[2], filters[1])
-        self.Up_conv3 = conv_block(filters[2], filters[1])
+        self.Up_conv3 = conv_block(filters[2]+filters[1], filters[1])
 
         self.Up2 = up_conv(filters[1], filters[0])
         self.Up_conv2 = conv_block(filters[1], filters[0])
@@ -44,17 +47,25 @@ class U_Net(nn.Module):
         self.active = torch.nn.Sigmoid()
 
     def forward(self, x):
-
         e1 = self.Conv1(x)
 
         e2 = self.Maxpool1(e1)
         e2 = self.Conv2(e2)
+        m2=self.Conv1_2(x)
+        e2 = torch.cat((e2, m2), dim=1)
 
         e3 = self.Maxpool2(e2)
         e3 = self.Conv3(e3)
+        m3=self.Conv2_3(x)
+
+        e3 = torch.cat((e3, m3), dim=1)
+        
+       
+        
 
         e4 = self.Maxpool3(e3)
         e4 = self.Conv4(e4)
+        
 
         e5 = self.Maxpool4(e4)
         e5 = self.Conv5(e5)
@@ -165,13 +176,13 @@ class R2U_Net(nn.Module):
 
         return out
 
-class AttU_Net(nn.Module):
+class Multi_input_AttU_Net(nn.Module):
     """
     Attention Unet implementation
     Paper: https://arxiv.org/abs/1804.03999
     """
     def __init__(self, img_ch=1, output_ch=1):
-        super(AttU_Net, self).__init__()
+        super(Multi_input_AttU_Net, self).__init__()
 
         n1 = 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
@@ -183,21 +194,24 @@ class AttU_Net(nn.Module):
 
         self.Conv1 = conv_block(img_ch, filters[0])
         self.Conv2 = conv_block(filters[0], filters[1])
-        self.Conv3 = conv_block(filters[1], filters[2])
-        self.Conv4 = conv_block(filters[2], filters[3])
+        self.Conv3 = conv_block(2*filters[1], filters[2])
+        self.Conv4 = conv_block(2*filters[2], filters[3])
         self.Conv5 = conv_block(filters[3], filters[4])
+
+        self.Conv1_2 = conv_block(img_ch, filters[1],stride=2)
+        self.Conv2_3 = conv_block(img_ch, filters[2],stride=4)
 
         self.Up5 = up_conv(filters[4], filters[3])
         self.Att5 = Attention_block(F_g=filters[3], F_l=filters[3], F_int=filters[2])
         self.Up_conv5 = conv_block(filters[4], filters[3])
 
         self.Up4 = up_conv(filters[3], filters[2])
-        self.Att4 = Attention_block(F_g=filters[2], F_l=filters[2], F_int=filters[1])
-        self.Up_conv4 = conv_block(filters[3], filters[2])
+        self.Att4 = Attention_block(F_g=2*filters[2], F_l=filters[2], F_int=filters[1])
+        self.Up_conv4 = conv_block(filters[2]+filters[3], filters[2])
 
         self.Up3 = up_conv(filters[2], filters[1])
-        self.Att3 = Attention_block(F_g=filters[1], F_l=filters[1], F_int=filters[0])
-        self.Up_conv3 = conv_block(filters[2], filters[1])
+        self.Att3 = Attention_block(F_g=2*filters[1], F_l=filters[1], F_int=filters[0])
+        self.Up_conv3 = conv_block(filters[1]+filters[2], filters[1])
 
         self.Up2 = up_conv(filters[1], filters[0])
         self.Att2 = Attention_block(F_g=filters[0], F_l=filters[0], F_int=32)
@@ -214,9 +228,13 @@ class AttU_Net(nn.Module):
 
         e2 = self.Maxpool1(e1)
         e2 = self.Conv2(e2)
+        m2=self.Conv1_2(x)
+        e2 = torch.cat((e2, m2), dim=1)
 
         e3 = self.Maxpool2(e2)
         e3 = self.Conv3(e3)
+        m3=self.Conv2_3(x)
+        e3 = torch.cat((e3, m3), dim=1)
 
         e4 = self.Maxpool3(e3)
         e4 = self.Conv4(e4)

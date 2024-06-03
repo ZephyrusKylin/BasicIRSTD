@@ -50,6 +50,10 @@ class Net(nn.Module):
             self.model = ISTDU_Net()
         elif model_name == 'RDIAN':
             self.model = RDIAN()
+        elif model_name == 'Multi_input_U_Net':
+            self.model = Multi_input_U_Net()
+        elif model_name == 'Multi_input_AttU_Net':
+            self.model =Multi_input_AttU_Net()
         
     def forward(self, img):
         return self.model(img)

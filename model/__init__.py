@@ -7,3 +7,6 @@ from model.RISTDnet.model_RISTDnet import RISTDnet as RISTDnet
 from model.UIUNet.model_UIUNet import UIUNET as UIUNet
 from model.ISTDUNet.model_ISTDUNet import ISTDU_Net as ISTDU_Net
 from model.RDIAN.model_RDIAN import RDIAN as RDIAN
+
+from model.PRCV2024.model_Unet import Multi_input_U_Net as Multi_input_U_Net
+from model.PRCV2024.model_Unet import Multi_input_AttU_Net as Multi_input_AttU_Net
