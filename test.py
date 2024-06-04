@@ -18,6 +18,10 @@ parser.add_argument("--dataset_names", default=['NUAA-SIRST', 'NUDT-SIRST', 'IRS
                     help="dataset_name: 'NUAA-SIRST', 'NUDT-SIRST', 'IRSTD-1K', 'SIRST3', 'NUDT-SIRST-Sea'")
 parser.add_argument("--img_norm_cfg", default=None, type=dict,
                     help="specific a img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
+parser.add_argument("--img_norm_cfg_mean", default=None, type=float,
+                    help="specific a mean value img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
+parser.add_argument("--img_norm_cfg_std", default=None, type=float,
+                    help="specific a std value img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
 
 parser.add_argument("--save_img", default=True, type=bool, help="save image of or not")
 parser.add_argument("--save_img_dir", type=str, default='./results/', help="path of saved image")
@@ -26,31 +30,41 @@ parser.add_argument("--threshold", type=float, default=0.5)
 
 global opt
 opt = parser.parse_args()
-
+## Set img_norm_cfg
+if opt.img_norm_cfg_mean != None and opt.img_norm_cfg_std != None:
+  opt.img_norm_cfg = dict()
+  opt.img_norm_cfg['mean'] = opt.img_norm_cfg_mean
+  opt.img_norm_cfg['std'] = opt.img_norm_cfg_std
+  
 def test(): 
     test_set = TestSetLoader(opt.dataset_dir, opt.train_dataset_name, opt.test_dataset_name, opt.img_norm_cfg)
     test_loader = DataLoader(dataset=test_set, num_workers=1, batch_size=1, shuffle=False)
     
     net = Net(model_name=opt.model_name, mode='test').cuda()
-    net.load_state_dict(torch.load(opt.pth_dir)['state_dict'])
+    try:
+        net.load_state_dict(torch.load(opt.pth_dir)['state_dict'])
+    except:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        net.load_state_dict(torch.load(opt.pth_dir, map_location=device)['state_dict'])
     net.eval()
     
     eval_mIoU = mIoU() 
     eval_PD_FA = PD_FA()
-    for idx_iter, (img, gt_mask, size, img_dir) in enumerate(test_loader):
-        img = Variable(img).cuda()
-        pred = net.forward(img)
-        pred = pred[:,:,:size[0],:size[1]]
-        gt_mask = gt_mask[:,:,:size[0],:size[1]]
-        eval_mIoU.update((pred>opt.threshold).cpu(), gt_mask)
-        eval_PD_FA.update((pred[0,0,:,:]>opt.threshold).cpu(), gt_mask[0,0,:,:], size)   
-        
-        ### save img
-        if opt.save_img == True:
-            img_save = transforms.ToPILImage()((pred[0,0,:,:]).cpu())
-            if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
-                os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
-            img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
+    with torch.no_grad():
+        for idx_iter, (img, gt_mask, size, img_dir) in enumerate(test_loader):
+            img = Variable(img).cuda()
+            pred = net.forward(img)
+            pred = pred[:,:,:size[0],:size[1]]
+            gt_mask = gt_mask[:,:,:size[0],:size[1]]
+            eval_mIoU.update((pred>opt.threshold).cpu(), gt_mask)
+            eval_PD_FA.update((pred[0,0,:,:]>opt.threshold).cpu(), gt_mask[0,0,:,:], size)   
+            
+            ### save img
+            if opt.save_img == True:
+                img_save = transforms.ToPILImage()((pred[0,0,:,:]).cpu())
+                if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
+                    os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
+                img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
     
     results1 = eval_mIoU.get()
     results2 = eval_PD_FA.get()

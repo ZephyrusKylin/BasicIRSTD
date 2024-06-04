@@ -8,6 +8,18 @@ import matplotlib.pyplot as plt
 from metrics import *
 import numpy as np
 import os
+
+
+def is_parallel(model):
+    # Returns True if model is of type DP or DDP
+    return type(model) in (nn.parallel.DataParallel, nn.parallel.DistributedDataParallel)
+
+
+def de_parallel(model):
+    # De-parallelize a model: returns single-GPU model if model is of type DP or DDP
+    return model.module if is_parallel(model) else model
+
+
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
 parser = argparse.ArgumentParser(description="PyTorch BasicIRSTD train")
@@ -17,13 +29,9 @@ parser.add_argument("--dataset_names", default=['NUAA-SIRST'], nargs='+',
                     help="dataset_name: 'NUAA-SIRST', 'NUDT-SIRST', 'IRSTD-1K', 'SIRST3', 'NUDT-SIRST-Sea', 'IRDST-real'")
 parser.add_argument("--img_norm_cfg", default=None, type=dict,
                     help="specific a img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
-parser.add_argument("--img_norm_cfg_mean", default=None, type=float,
-                    help="specific a mean value img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
-parser.add_argument("--img_norm_cfg_std", default=None, type=float,
-                    help="specific a std value img_norm_cfg, default=None (using img_norm_cfg values of each dataset)")
 
 parser.add_argument("--dataset_dir", default='./datasets', type=str, help="train_dataset_dir")
-parser.add_argument("--batchSize", type=int, default=16, help="Training batch sizse")
+parser.add_argument("--batchSize", type=int, default=80, help="Training batch sizse")
 parser.add_argument("--patchSize", type=int, default=256, help="Training patch size")
 parser.add_argument("--save", default='./log', type=str, help="Save path of checkpoints")
 parser.add_argument("--resume", default=None, nargs='+', help="Resume from exisiting checkpoints (default: None)")
@@ -39,11 +47,6 @@ parser.add_argument("--seed", type=int, default=42, help="Threshold for test")
 
 global opt
 opt = parser.parse_args()
-## Set img_norm_cfg
-if opt.img_norm_cfg_mean != None and opt.img_norm_cfg_std != None:
-  opt.img_norm_cfg = dict()
-  opt.img_norm_cfg['mean'] = opt.img_norm_cfg_mean
-  opt.img_norm_cfg['std'] = opt.img_norm_cfg_std
 
 seed_pytorch(opt.seed)
 
@@ -51,7 +54,7 @@ def train():
     train_set = TrainSetLoader(dataset_dir=opt.dataset_dir, dataset_name=opt.dataset_name, patch_size=opt.patchSize, img_norm_cfg=opt.img_norm_cfg)
     train_loader = DataLoader(dataset=train_set, num_workers=opt.threads, batch_size=opt.batchSize, shuffle=True)
     
-    net = Net(model_name=opt.model_name, mode='train').cuda()
+    net = nn.DataParallel(Net(model_name=opt.model_name, mode='train'),device_ids=[0, 1,2,3]).cuda()
     net.train()
     
     epoch_state = 0
@@ -78,26 +81,24 @@ def train():
         opt.optimizer_settings = {'lr': 5e-4}
         opt.scheduler_name = 'MultiStepLR'
         opt.scheduler_settings = {'epochs':400, 'step': [200, 300], 'gamma': 0.1}
-        opt.scheduler_settings['epochs'] = opt.nEpochs
     
     ### Default settings of DNANet                
     if opt.optimizer_name == 'Adagrad':
         opt.optimizer_settings = {'lr': 0.05}
         opt.scheduler_name = 'CosineAnnealingLR'
         opt.scheduler_settings = {'epochs':1500, 'min_lr':1e-5}
-        opt.scheduler_settings['epochs'] = opt.nEpochs
         
     opt.nEpochs = opt.scheduler_settings['epochs']
         
     optimizer, scheduler = get_optimizer(net, opt.optimizer_name, opt.scheduler_name, opt.optimizer_settings, opt.scheduler_settings)
-    
+    # net = de_parallel(net)
     for idx_epoch in range(epoch_state, opt.nEpochs):
         for idx_iter, (img, gt_mask) in enumerate(train_loader):
             img, gt_mask = Variable(img).cuda(), Variable(gt_mask).cuda()
             if img.shape[0] == 1:
                 continue
             pred = net.forward(img)
-            loss = net.loss(pred, gt_mask)
+            loss = net.module.loss(pred, gt_mask)
             total_loss_epoch.append(loss.detach().cpu())
             
             optimizer.zero_grad()
@@ -134,8 +135,8 @@ def train():
 def test(save_pth):
     test_set = TestSetLoader(opt.dataset_dir, opt.dataset_name, opt.dataset_name, img_norm_cfg=opt.img_norm_cfg)
     test_loader = DataLoader(dataset=test_set, num_workers=1, batch_size=1, shuffle=False)
-    
-    net = Net(model_name=opt.model_name, mode='test').cuda()
+
+    net = nn.DataParallel(Net(model_name=opt.model_name, mode='test'),device_ids=[0]).cuda()
     ckpt = torch.load(save_pth)
     net.load_state_dict(ckpt['state_dict'])
     net.eval()
@@ -173,5 +174,8 @@ if __name__ == '__main__':
             opt.f = open(opt.save + '/' + opt.dataset_name + '_' + opt.model_name + '_' + (time.ctime()).replace(' ', '_').replace(':', '_') + '.txt', 'w')
             print(opt.dataset_name + '\t' + opt.model_name)
             train()
+            # save_pth = '/home/omnisky/zk/work-dir/IRSTD/Unet_ori_4gpus/IRSTD/U-Net_50.pth.tar'
+            # test(save_pth)
             print('\n')
             opt.f.close()
+

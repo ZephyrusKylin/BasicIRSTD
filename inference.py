@@ -36,11 +36,11 @@ if opt.img_norm_cfg_mean != None and opt.img_norm_cfg_std != None:
   opt.img_norm_cfg = dict()
   opt.img_norm_cfg['mean'] = opt.img_norm_cfg_mean
   opt.img_norm_cfg['std'] = opt.img_norm_cfg_std
-
+  
 def test(): 
     test_set = InferenceSetLoader(opt.dataset_dir, opt.train_dataset_name, opt.test_dataset_name, opt.img_norm_cfg)
     test_loader = DataLoader(dataset=test_set, num_workers=1, batch_size=1, shuffle=False)
-
+    
     net = Net(model_name=opt.model_name, mode='test').cuda()
     try:
         net.load_state_dict(torch.load(opt.pth_dir)['state_dict'])
@@ -49,19 +49,20 @@ def test():
         net.load_state_dict(torch.load(opt.pth_dir, map_location=device)['state_dict'])
     net.eval()
 
-    for idx_iter, (img, size, img_dir) in tqdm(enumerate(test_loader)):
-        img = Variable(img).cuda()
-        pred = net.forward(img)
-        pred = pred[:,:,:size[0],:size[1]]        
-        ### save img
-        if opt.save_img == True:
-            img_save = transforms.ToPILImage()(((pred[0,0,:,:]>opt.threshold).float()).cpu())
-            if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
-                os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
-            img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
-
+    with torch.no_grad():
+        for idx_iter, (img, size, img_dir) in tqdm(enumerate(test_loader)):
+            img = Variable(img).cuda()
+            pred = net.forward(img)
+            pred = pred[:,:,:size[0],:size[1]]        
+            ### save img
+            if opt.save_img == True:
+                img_save = transforms.ToPILImage()(((pred[0,0,:,:]>opt.threshold).float()).cpu())
+                if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
+                    os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
+                img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
+    
     print('Inference Done!')
-
+   
 if __name__ == '__main__':
     opt.f = open(opt.save_log + 'test_' + (time.ctime()).replace(' ', '_').replace(':', '_') + '.txt', 'w')
     if opt.pth_dirs == None:
