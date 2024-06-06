@@ -86,18 +86,19 @@ if __name__ == '__main__':
             for dataset_name in opt.dataset_names:
                 for pth_dir in opt.pth_dirs:
                     if dataset_name in pth_dir or model_name in pth_dir:
-                        opt.test_dataset_name = dataset_name
-                        opt.model_name = model_name
-                        opt.train_dataset_name = pth_dir.split('/')[0]
-                        print(pth_dir)
-                        opt.f.write(pth_dir)
-                        print(opt.test_dataset_name)
-                        opt.f.write(opt.test_dataset_name + '\n')
-                        opt.pth_dir = pth_dir
                         try:
-                            test()
+                            opt.test_dataset_name = dataset_name
+                            opt.model_name = model_name
+                            opt.train_dataset_name = pth_dir.split('/')[0]
+                            print(pth_dir)
+                            opt.f.write(pth_dir)
+                            print(opt.test_dataset_name)
+                            opt.f.write(opt.test_dataset_name + '\n')
+                            opt.pth_dir = pth_dir
                         except:
                             raise ImportError
+                        
+                        test()
                         print('\n')
                         opt.f.write('\n')
         opt.f.close()
