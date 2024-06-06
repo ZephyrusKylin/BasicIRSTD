@@ -60,22 +60,24 @@ def test():
         net_mini.load_state_dict(torch.load(opt.pth_mini_dir, map_location=device))
     net_mini.eval()
     ###
+
     with torch.no_grad():
         for idx_iter, (img, size, img_dir) in tqdm(enumerate(test_loader)):
-
-            img = Variable(img).cuda()
             try:
-                pred = net.forward(img)
+                img = Variable(img).cuda()
+                try:
+                    pred = net.forward(img)
+                except:
+                    pred = net_mini.forward(img)
+                pred = pred[:,:,:size[0],:size[1]]        
+                ### save img
+                if opt.save_img == True:
+                    img_save = transforms.ToPILImage()(((pred[0,0,:,:]>opt.threshold).float()).cpu())
+                    if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
+                        os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
+                    img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
             except:
-                pred = net_mini.forward(img)
-            pred = pred[:,:,:size[0],:size[1]]        
-            ### save img
-            if opt.save_img == True:
-                img_save = transforms.ToPILImage()(((pred[0,0,:,:]>opt.threshold).float()).cpu())
-                if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
-                    os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
-                img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
-
+                continue
     
     print('Inference Done!')
    
