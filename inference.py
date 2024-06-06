@@ -43,7 +43,7 @@ def test():
     
     net = Net(model_name=opt.model_name, mode='test').cuda()
     try:
-        net.load_state_dict(torch.load(opt.pth_dir)['state_dict'])
+        net.load_state_dict(torch.load(opt.pth_dir))
     except:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         net.load_state_dict(torch.load(opt.pth_dir, map_location=device))
