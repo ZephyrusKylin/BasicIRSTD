@@ -94,7 +94,10 @@ if __name__ == '__main__':
                         print(opt.test_dataset_name)
                         opt.f.write(opt.test_dataset_name + '\n')
                         opt.pth_dir = pth_dir
-                        test()
+                        try:
+                            test()
+                        except:
+                            raise ImportError
                         print('\n')
                         opt.f.write('\n')
         opt.f.close()
