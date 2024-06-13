@@ -148,3 +148,110 @@ def PadImg(img, times=32):
     if not w % times == 0:
         img = np.pad(img, ((0, 0),(0, (w//times+1)*times-w)), mode='constant')
     return img        
+
+
+def preprocess(image, x, gap, m):
+    """
+    将大图进行分块切割，只有当图像尺寸任一方向大于m时才切块
+    :param image: 输入的图像，numpy数组
+    :param x: 切块大小
+    :param gap: 重叠区域长度
+    :param m: 尺寸阈值，任一方向上尺寸大于m的图像需要进行切块
+    :return: (切块列表, 图像尺寸, 切块位置列表)
+    """
+    h, w = image.shape[:2]
+    
+    patches = []
+    positions = []
+
+    # 判断是否需要进行切块
+    if h <= m and w <= m:
+        patches.append(image)
+        positions.append((0, 0))
+    else:
+        # 计算切块的步长（stride）
+        stride = x - gap
+        
+        for i in range(0, h, stride):
+            for j in range(0, w, stride):
+                # 处理越界的情况
+                end_i = min(i + x, h)
+                end_j = min(j + x, w)
+                
+                patch = image[i:end_i, j:end_j]
+                patches.append(patch)
+                positions.append((i, j))
+    
+    return patches, (h, w), positions
+
+def postprocess(patches, image_shape, positions, x, gap):
+    """
+    将分块结果拼接回原图
+    :param patches: 切块列表，包含切块的位置信息
+    :param image_shape: 原图的尺寸
+    :param positions: 切块位置列表
+    :param x: 切块大小
+    :param gap: 重叠区域长度
+    :return: 重建后的图像（Tensor格式）
+    """
+    h, w = image_shape[:2]
+    stride = x - gap
+    
+    reconstructed_image = torch.zeros((1, 1, h, w), dtype=torch.float32)
+    weight_matrix = torch.zeros((1, 1, h, w), dtype=torch.float32)
+
+    for patch, (i, j) in zip(patches, positions):
+        end_i = min(i + x, h)
+        end_j = min(j + x, w)
+        
+        
+        reconstructed_image[:, :, i:end_i, j:end_j] += patch
+        weight_matrix[:, :, i:end_i, j:end_j] += 1
+    
+    # 处理重叠区域
+    reconstructed_image /= weight_matrix
+    
+    return reconstructed_image
+
+
+# 示例使用
+if __name__ == "__main__":
+    # 图像路径列表
+    image_paths = ['input_image1.png', 'input_image2.png']
+    
+    # 切块大小、重叠区域长度和尺寸阈值
+    x = 128
+    gap = 16
+    m = 256
+    
+    # 创建数据集和数据加载器
+    dataset = CustomDataset(image_paths)
+    test_loader = DataLoader(dataset, batch_size=1, shuffle=False)
+
+    predicted_patches_all = []
+    image_shapes = []
+    positions_all = []
+    
+    for image, image_path in tqdm(test_loader):
+        image = image[0].numpy()  # 从 DataLoader 获取图像
+        
+        # 前处理：图像切块
+        patches, image_shape, positions = preprocess(image, x, gap, m)
+        
+        # 收集信息以便后处理
+        predicted_patches = []
+        for patch in patches:
+            img_tensor = torch.from_numpy(np.expand_dims(np.expand_dims(patch, 0), 0)).cuda()
+            pred = net.forward(img_tensor)
+            pred = pred[0, 0, :patch.shape[0], :patch.shape[1]].cpu().numpy()
+            predicted_patches.append(pred)
+        
+        predicted_patches_all.append(predicted_patches)
+        image_shapes.append(image_shape)
+        positions_all.append(positions)
+        
+        # 后处理：图像重建
+        reconstructed_image = postprocess(predicted_patches, image_shape, positions, x, gap)
+        
+        # 保存重建后的图像
+        cv2.imwrite(f'reconstructed_{image_path[0]}', reconstructed_image)

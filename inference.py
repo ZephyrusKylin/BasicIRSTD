@@ -8,15 +8,16 @@ from metrics import *
 import os
 import time
 from tqdm import tqdm
+from utils import postprocess, preprocess
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 parser = argparse.ArgumentParser(description="PyTorch BasicIRSTD Inference without mask")
 parser.add_argument("--model_names", default=['ACM', 'ALCNet','DNANet', 'ISNet', 'RDIAN', 'ISTDU-Net'], nargs='+',  
                     help="model_name: 'ACM', 'ALCNet', 'DNANet', 'ISNet', 'UIUNet', 'RDIAN', 'ISTDU-Net', 'U-Net', 'RISTDnet'")
-parser.add_argument("--model_names_mini", default=['ACM', 'ALCNet','DNANet', 'ISNet', 'RDIAN', 'ISTDU-Net'], nargs='+',  
-                    help="model_name: 'ACM', 'ALCNet', 'DNANet', 'ISNet', 'UIUNet', 'RDIAN', 'ISTDU-Net', 'U-Net', 'RISTDnet'")
+# parser.add_argument("--model_names_mini", default=['ACM', 'ALCNet','DNANet', 'ISNet', 'RDIAN', 'ISTDU-Net'], nargs='+',  
+#                     help="model_name: 'ACM', 'ALCNet', 'DNANet', 'ISNet', 'UIUNet', 'RDIAN', 'ISTDU-Net', 'U-Net', 'RISTDnet'")
 parser.add_argument("--pth_dirs", default=None, nargs='+',  help="checkpoint dir, default=None or ['NUDT-SIRST/ACM_400.pth.tar','NUAA-SIRST/ACM_400.pth.tar']")
-parser.add_argument("--pth_mini_dirs", default=None, nargs='+',  help="checkpoint dir, default=None or ['NUDT-SIRST/ACM_400.pth.tar','NUAA-SIRST/ACM_400.pth.tar']")
+# parser.add_argument("--pth_mini_dirs", default=None, nargs='+',  help="checkpoint dir, default=None or ['NUDT-SIRST/ACM_400.pth.tar','NUAA-SIRST/ACM_400.pth.tar']")
 parser.add_argument("--dataset_dir", default='./datasets', type=str, help="train_dataset_dir")
 parser.add_argument("--dataset_names", default=['NUAA-SIRST', 'NUDT-SIRST', 'IRSTD-1K'], nargs='+', 
                     help="dataset_name: 'NUAA-SIRST', 'NUDT-SIRST', 'IRSTD-1K', 'SIRST3', 'NUDT-SIRST-Sea'")
@@ -39,7 +40,7 @@ if opt.img_norm_cfg_mean != None and opt.img_norm_cfg_std != None:
   opt.img_norm_cfg = dict()
   opt.img_norm_cfg['mean'] = opt.img_norm_cfg_mean
   opt.img_norm_cfg['std'] = opt.img_norm_cfg_std
-  
+
 def test(): 
     test_set = InferenceSetLoader(opt.dataset_dir, opt.train_dataset_name, opt.test_dataset_name, opt.img_norm_cfg)
     test_loader = DataLoader(dataset=test_set, num_workers=1, batch_size=1, shuffle=False)
@@ -51,34 +52,36 @@ def test():
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         net.load_state_dict(torch.load(opt.pth_dir, map_location=device))
     net.eval()
-    ###
-    net_mini = Net(model_name=opt.model_name_mini, mode='test').cuda()
-    try:
-        net_mini.load_state_dict(torch.load(opt.pth_mini_dir))
-    except:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        net_mini.load_state_dict(torch.load(opt.pth_mini_dir, map_location=device))
-    net_mini.eval()
-    ###
-
+    # ###
+    # net_mini = Net(model_name=opt.model_name_mini, mode='test').cuda()
+    # try:
+    #     net_mini.load_state_dict(torch.load(opt.pth_mini_dir))
+    # except:
+    #     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    #     net_mini.load_state_dict(torch.load(opt.pth_mini_dir, map_location=device))
+    # net_mini.eval()
+    # ###
+    slice_size = 256
+    gap = 16
+    m = 300
     with torch.no_grad():
         for idx_iter, (img, size, img_dir) in tqdm(enumerate(test_loader)):
-            try:
-                img = Variable(img).cuda()
-                try:
-                    pred = net.forward(img)
-                except:
-                    pred = net_mini.forward(img)
-                pred = pred[:,:,:size[0],:size[1]]        
-                ### save img
-                if opt.save_img == True:
-                    img_save = transforms.ToPILImage()(((pred[0,0,:,:]>opt.threshold).float()).cpu())
-                    if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
-                        os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
-                    img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
-            except:
-                continue
-    
+            patches, image_shape, positions = preprocess(img, slice_size, gap, m)
+            predicted_patches = []
+            for patch in patches:
+                img = Variable(patch).cuda()
+                pred = net.forward(img)
+                predicted_patches.append(pred)
+            reconstructed_image = postprocess(predicted_patches, image_shape, positions, x, gap)
+            
+            # pred = reconstructed_image[:,:,:size[0],:size[1]]        
+            ### save img
+            if opt.save_img == True:
+                img_save = transforms.ToPILImage()(((reconstructed_image[0,0,:,:]>opt.threshold).float()).cpu())
+                if not os.path.exists(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name):
+                    os.makedirs(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name)
+                img_save.save(opt.save_img_dir + opt.test_dataset_name + '/' + opt.model_name + '/' + img_dir[0] + '.png')  
+
     print('Inference Done!')
    
 if __name__ == '__main__':
