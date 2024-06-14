@@ -196,15 +196,14 @@ def postprocess(patches, image_shape, positions, x, gap):
     """
     h, w = image_shape[:2]
     stride = x - gap
-    
     reconstructed_image = torch.zeros((1, 1, h, w), dtype=torch.float32)
     weight_matrix = torch.zeros((1, 1, h, w), dtype=torch.float32)
 
+    if len(positions) == 1:
+        return patches[0]
     for patch, (i, j) in zip(patches, positions):
         end_i = min(i + x, h)
         end_j = min(j + x, w)
-        
-        
         reconstructed_image[:, :, i:end_i, j:end_j] += patch
         weight_matrix[:, :, i:end_i, j:end_j] += 1
     

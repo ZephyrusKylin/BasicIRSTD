@@ -72,7 +72,7 @@ def test():
                 img = Variable(patch).cuda()
                 pred = net.forward(img)
                 predicted_patches.append(pred)
-            reconstructed_image = postprocess(predicted_patches, image_shape, positions, x, gap)
+            reconstructed_image = postprocess(predicted_patches, image_shape, positions, slice_size, gap)
             
             # pred = reconstructed_image[:,:,:size[0],:size[1]]        
             ### save img
@@ -109,14 +109,14 @@ if __name__ == '__main__':
                     if dataset_name in pth_dir or model_name in pth_dir:
                         opt.test_dataset_name = dataset_name
                         opt.model_name = model_name
-                        opt.model_name_mini = opt.model_names_mini[0]
+                        # opt.model_name_mini = opt.model_names_mini[0]
                         opt.train_dataset_name = pth_dir.split('/')[0]
                         print(pth_dir)
                         opt.f.write(pth_dir)
                         print(opt.test_dataset_name)
                         opt.f.write(opt.test_dataset_name + '\n')
                         opt.pth_dir = pth_dir        
-                        opt.pth_mini_dir =  opt.pth_mini_dirs[0]  
+                        # opt.pth_mini_dir =  opt.pth_mini_dirs[0]  
                         test()
                         print('\n')
                         opt.f.write('\n')
